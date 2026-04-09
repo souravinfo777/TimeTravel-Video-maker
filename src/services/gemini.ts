@@ -1,0 +1,144 @@
+import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai';
+
+const getFreeAI = () => new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const getPaidAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+export async function generateLocationDescription(hint: string): Promise<{ description: string, places: any[] }> {
+  const ai = getFreeAI();
+  const response = await ai.models.generateContent({
+    model: 'gemini-flash-latest',
+    contents: `Describe a real-world location based on this hint: "${hint}". 
+    Provide a highly detailed physical description suitable for an image generation prompt. 
+    Include details about:
+    - Architecture and building materials
+    - Vegetation and landscaping
+    - Street elements (mailboxes, fences, pavement)
+    - Lighting and atmosphere
+    
+    Do not include any conversational text, just the detailed description.`,
+  });
+  
+  return { description: response.text || '', places: [] };
+}
+
+export async function generatePrompts(params: any): Promise<any[]> {
+  const ai = getFreeAI();
+  const { startYear, endYear, numImages, locationDescription, charactersEnabled, numPeople, characterNotes, decayLevel } = params;
+  
+  const years = [];
+  if (numImages <= 1) {
+    years.push(startYear);
+  } else {
+    const step = (endYear - startYear) / (numImages - 1);
+    for (let i = 0; i < numImages; i++) {
+      years.push(Math.round(startYear + step * i));
+    }
+  }
+
+  const promptText = `
+    Generate a sequence of ${numImages} image prompts for the years: ${years.join(', ')}.
+    
+    Location: ${locationDescription}
+    Characters: ${charactersEnabled ? `${numPeople} people. Notes: ${characterNotes}` : 'No people.'}
+    Decay Level (0-100): ${decayLevel} (0 = pristine, 100 = completely ruined by the final year)
+    
+    CRITICAL RULES FOR CONSISTENCY AND ANGLE:
+    1. EXACT SAME CAMERA ANGLE: Every single prompt MUST start with the exact same description of the camera angle, framing, and perspective (e.g., "Eye-level wide shot from the center of the street looking directly at the front of the house..."). Do not vary the angle.
+    2. STRUCTURAL CONSISTENCY: The core buildings, terrain, and layout MUST be described identically in every prompt.
+    3. PROGRESSION: Only change the weather, aging, decay, overgrowth, and character aging based on the year and decay level.
+    4. TEXT OVERLAY: Include "Text overlay: [YEAR]" at the end of each prompt.
+    5. Each prompt must be a single, highly detailed paragraph ready for an image generation model.
+  `;
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-3.1-pro-preview',
+    contents: promptText,
+    config: {
+      thinkingConfig: { thinkingLevel: ThinkingLevel.HIGH },
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            year: { type: Type.INTEGER },
+            prompt: { type: Type.STRING, description: "The detailed image generation prompt" }
+          },
+          required: ["year", "prompt"]
+        }
+      }
+    }
+  });
+
+  const text = response.text || '[]';
+  return JSON.parse(text);
+}
+
+export async function generateImage(prompt: string, aspectRatio: string, imageSize: string): Promise<string> {
+  const ai = getFreeAI();
+  
+  // Clean up the prompt to prevent 500 errors and ensure it's safe for the model.
+  let safePrompt = prompt.replace(/Text overlay:.*?$/im, '').trim();
+  safePrompt = safePrompt.substring(0, 1000) + ' Documentary photography, highly detailed.';
+
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash-image',
+    contents: { parts: [{ text: safePrompt }] },
+    config: {
+      imageConfig: {
+        aspectRatio: aspectRatio as any
+      }
+    }
+  });
+  
+  for (const part of response.candidates?.[0]?.content?.parts || []) {
+    if (part.inlineData) {
+      // The model might not return mimeType, so we default to image/png as per docs
+      const mimeType = part.inlineData.mimeType || 'image/png';
+      return `data:${mimeType};base64,${part.inlineData.data}`;
+    }
+  }
+  throw new Error("No image generated");
+}
+
+export async function editImage(base64Image: string, editPrompt: string): Promise<string> {
+  const ai = getFreeAI();
+  const mimeType = base64Image.split(';')[0].split(':')[1];
+  const data = base64Image.split(',')[1];
+  
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash-image',
+    contents: {
+      parts: [
+        { inlineData: { data, mimeType } },
+        { text: editPrompt }
+      ]
+    }
+  });
+  
+  for (const part of response.candidates?.[0]?.content?.parts || []) {
+    if (part.inlineData) {
+      const outMimeType = part.inlineData.mimeType || 'image/png';
+      return `data:${outMimeType};base64,${part.inlineData.data}`;
+    }
+  }
+  throw new Error("No image generated");
+}
+
+export async function analyzeImage(base64Image: string): Promise<string> {
+  const ai = getFreeAI();
+  const mimeType = base64Image.split(';')[0].split(':')[1];
+  const data = base64Image.split(',')[1];
+  
+  const response = await ai.models.generateContent({
+    model: 'gemini-3.1-pro-preview',
+    contents: {
+      parts: [
+        { inlineData: { data, mimeType } },
+        { text: "Analyze this image in detail. Describe the environment, the condition of the location, any characters present, and the overall mood." }
+      ]
+    }
+  });
+  
+  return response.text || '';
+}
