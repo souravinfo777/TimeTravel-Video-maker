@@ -1,1 +1,185 @@
 @import "tailwindcss";
+
+@layer base {
+  :root {
+    --glass-bg: rgba(24, 24, 27, 0.45);
+    --glass-border: rgba(255, 255, 255, 0.07);
+    --amber: #f59e0b;
+    --amber-dim: rgba(245, 158, 11, 0.15);
+  }
+
+  body {
+    @apply bg-zinc-950 text-zinc-100 antialiased;
+    background-image:
+      radial-gradient(ellipse at 0% 0%, rgba(245, 158, 11, 0.06) 0px, transparent 55%),
+      radial-gradient(ellipse at 100% 100%, rgba(245, 158, 11, 0.03) 0px, transparent 55%),
+      radial-gradient(ellipse at 50% 80%, rgba(99, 102, 241, 0.03) 0px, transparent 50%);
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-zinc-800 rounded-full;
+    transition: background 0.2s;
+  }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-zinc-700; }
+}
+
+/* ── Glass utilities ──────────────────────────────────── */
+.glass {
+  @apply backdrop-blur-xl border shadow-2xl;
+  background: var(--glass-bg);
+  border-color: var(--glass-border);
+}
+
+.glass-card {
+  @apply backdrop-blur-md border rounded-2xl overflow-hidden transition-all duration-300;
+  background: rgba(24, 24, 27, 0.45);
+  border-color: rgba(255, 255, 255, 0.05);
+}
+.glass-card:hover {
+  border-color: rgba(245, 158, 11, 0.2);
+  box-shadow: 0 0 0 1px rgba(245, 158, 11, 0.06), 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Sidebar shared input style ───────────────────────── */
+.sidebar-input {
+  @apply w-full px-3 py-2 rounded-lg text-sm text-white transition-all;
+  background: rgba(9, 9, 11, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  outline: none;
+}
+.sidebar-input:focus {
+  border-color: rgba(245, 158, 11, 0.45);
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.08);
+}
+.sidebar-input::placeholder { color: #52525b; }
+
+/* ── Scene card hover glow ───────────────────────────── */
+.scene-card {
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.18s ease;
+}
+.scene-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 36px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(245, 158, 11, 0.1);
+}
+
+/* ── Shimmer animation (used by MagicEditModal) ─────── */
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+.shimmer-btn {
+  background: linear-gradient(90deg, #d97706, #f59e0b, #fbbf24, #f59e0b, #d97706);
+  background-size: 200% auto;
+  animation: shimmer 2s linear infinite;
+}
+
+/* ── Pulse ping (used by map marker) ────────────────── */
+@keyframes ping {
+  0%   { transform: scale(0.8); opacity: 1; }
+  100% { transform: scale(2);   opacity: 0; }
+}
+
+/* ── Map pin ─────────────────────────────────────────── */
+.map-pin-wrapper { position: relative; width: 32px; height: 32px; }
+.map-pin-dot {
+  position: absolute; top: 4px; left: 4px;
+  width: 24px; height: 24px;
+  border-radius: 50% 50% 50% 0;
+  background: #f59e0b;
+  transform: rotate(-45deg);
+  box-shadow: 0 3px 12px rgba(245, 158, 11, 0.55);
+}
+.map-pin-ring {
+  position: absolute; top: 0; left: 0;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 2px solid rgba(245, 158, 11, 0.35);
+  animation: ping 1.6s ease-out infinite;
+}
+
+/* ── Leaflet overrides ───────────────────────────────── */
+.leaflet-container { background: #0c0c0f !important; }
+.leaflet-control-zoom a {
+  background: rgba(12, 12, 15, 0.9) !important;
+  color: #d4d4d8 !important;
+  border-color: rgba(255,255,255,0.08) !important;
+}
+.leaflet-control-zoom a:hover {
+  background: rgba(245,158,11,0.15) !important;
+  color: #f59e0b !important;
+}
+.custom-popup .leaflet-popup-content-wrapper {
+  background: rgba(18, 18, 21, 0.96) !important;
+  color: #f4f4f5 !important;
+  border: 1px solid rgba(255,255,255,0.09) !important;
+  backdrop-filter: blur(14px);
+  border-radius: 10px !important;
+  font-family: inherit;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
+}
+.custom-popup .leaflet-popup-tip {
+  background: rgba(18, 18, 21, 0.96) !important;
+}
+.leaflet-popup-close-button { display: none !important; }
+
+/* ── Scrollbar hide utility ─────────────────────────── */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* ── Responsive / Mobile ────────────────────────────── */
+@media (max-width: 1023px) {
+  /* Sidebar overlay on mobile */
+  aside {
+    box-shadow: 8px 0 32px rgba(0, 0, 0, 0.6);
+  }
+
+  /* Scene cards stack cleanly */
+  .scene-card {
+    flex-direction: column !important;
+  }
+  .scene-card > div:first-child {
+    flex-direction: row !important;
+    height: 32px !important;
+    width: 100% !important;
+  }
+
+  /* Prevent horizontal overflow */
+  main {
+    max-width: 100vw;
+    overflow-x: hidden;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Tighter padding on very small screens */
+  .sidebar-input {
+    padding: 0.5rem 0.625rem;
+    font-size: 0.8125rem;
+  }
+
+  /* Touch-friendly targets */
+  button, a, select, input[type="checkbox"] {
+    min-height: 36px;
+  }
+
+  /* Before/After slider adjustments */
+  .aspect-video {
+    aspect-ratio: 4/3;
+  }
+}
+
+/* ── Timeline scrubber bottom fade ──────────────────── */
+@supports (backdrop-filter: blur(10px)) {
+  .timeline-scrubber-bg {
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+}
