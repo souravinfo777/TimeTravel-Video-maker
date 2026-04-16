@@ -1,99 +1,27 @@
-import React, { useState, useRef } from 'react';
-import { Scene, TransitionType, ExportPreset } from '../types';
-import { X, Video, Download, Settings, Clock, MoveHorizontal, Wand2, Monitor, Smartphone, Twitter, Youtube } from 'lucide-react';
-import { motion } from 'motion/react';
-import { loadImage, drawSceneFrame, drawTransition, drawYearOverlay } from '../services/videoUtils';
+import React, { useState, useRef, useEffect } from 'react';
+import { Scene } from '../types';
+import { X, Video, Download, Loader2, Settings, Clock, MoveHorizontal } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 
 interface VideoExportModalProps {
   scenes: Scene[];
   onClose: () => void;
 }
 
-const EXPORT_PRESETS: ExportPreset[] = [
-  {
-    id: 'youtube',
-    name: 'YouTube',
-    icon: '▶️',
-    aspectRatio: '16:9',
-    duration: 4,
-    transition: 'fade',
-    quality: '1080p',
-    description: '16:9 · 1080p · 4s/scene · Fade',
-  },
-  {
-    id: 'instagram',
-    name: 'Instagram Reel',
-    icon: '📸',
-    aspectRatio: '9:16',
-    duration: 3,
-    transition: 'slide',
-    quality: '1080p',
-    description: '9:16 · 1080p · 3s/scene · Slide',
-  },
-  {
-    id: 'tiktok',
-    name: 'TikTok',
-    icon: '🎵',
-    aspectRatio: '9:16',
-    duration: 2,
-    transition: 'cut',
-    quality: '720p',
-    description: '9:16 · 720p · 2s/scene · Fast Cut',
-  },
-  {
-    id: 'twitter',
-    name: 'Twitter / X',
-    icon: '𝕏',
-    aspectRatio: '1:1',
-    duration: 2,
-    transition: 'fade',
-    quality: '720p',
-    description: '1:1 · 720p · 2s/scene · Fade',
-  },
-  {
-    id: 'custom',
-    name: 'Custom',
-    icon: '⚙️',
-    aspectRatio: '16:9',
-    duration: 3,
-    transition: 'fade',
-    quality: 'auto',
-    description: 'Configure manually',
-  },
-];
-
-const TRANSITION_OPTIONS: { type: TransitionType; label: string; description: string }[] = [
-  { type: 'fade', label: 'FADE', description: 'Smooth crossfade' },
-  { type: 'slide', label: 'SLIDE', description: 'Horizontal slide' },
-  { type: 'cut', label: 'CUT', description: 'Instant switch' },
-  { type: 'dissolve', label: 'DISSOLVE', description: 'Cinematic dissolve' },
-  { type: 'wipe', label: 'WIPE', description: 'Diagonal reveal' },
-  { type: 'zoom', label: 'ZOOM', description: 'Zoom through' },
-  { type: 'filmreel', label: 'FILM', description: 'Classic flicker' },
-];
+type TransitionType = 'fade' | 'slide' | 'cut';
 
 export function VideoExportModal({ scenes, onClose }: VideoExportModalProps) {
   const [duration, setDuration] = useState(3);
   const [transition, setTransition] = useState<TransitionType>('fade');
-  const [useKenBurns, setUseKenBurns] = useState(true);
-  const [useVintageFilters, setUseVintageFilters] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [progress, setProgress] = useState(0);
   const [videoUrl, setVideoUrl] = useState<string | null>(null);
   const [exportMimeType, setExportMimeType] = useState('video/mp4');
-  const [selectedPreset, setSelectedPreset] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
 
   const imagesWithUrls = scenes.filter(s => s.imageUrl);
-
-  const handlePresetSelect = (preset: ExportPreset) => {
-    setSelectedPreset(preset.id);
-    if (preset.id !== 'custom') {
-      setDuration(preset.duration);
-      setTransition(preset.transition);
-    }
-  };
 
   const getSupportedMimeType = () => {
     const types = [
@@ -120,9 +48,10 @@ export function VideoExportModal({ scenes, onClose }: VideoExportModalProps) {
     chunksRef.current = [];
 
     const canvas = canvasRef.current;
-    const ctx = canvas.getContext('2d', { alpha: false });
+    const ctx = canvas.getContext('2d', { alpha: false }); // Disable alpha for better performance/quality
     if (!ctx) return;
 
+    // Set canvas size based on first image or default
     const firstImg = await loadImage(imagesWithUrls[0].imageUrl!);
     canvas.width = firstImg.width;
     canvas.height = firstImg.height;
@@ -130,10 +59,10 @@ export function VideoExportModal({ scenes, onClose }: VideoExportModalProps) {
     const mimeType = getSupportedMimeType();
     setExportMimeType(mimeType);
 
-    const stream = canvas.captureStream(30);
+    const stream = canvas.captureStream(30); // 30 FPS
     const recorder = new MediaRecorder(stream, {
       mimeType,
-      videoBitsPerSecond: 15000000
+      videoBitsPerSecond: 15000000 // 15 Mbps for "best quality"
     });
 
     recorder.ondataavailable = (e) => {
@@ -158,39 +87,61 @@ export function VideoExportModal({ scenes, onClose }: VideoExportModalProps) {
       const nextImg = i < imagesWithUrls.length - 1 ? await loadImage(imagesWithUrls[i + 1].imageUrl!) : null;
 
       for (let frame = 0; frame < totalFramesPerImage; frame++) {
-        // Draw the main scene frame
-        drawSceneFrame(ctx, currentImg, frame, totalFramesPerImage, {
-          canvasWidth: canvas.width,
-          canvasHeight: canvas.height,
-          useKenBurns,
-          useVintageFilters,
-          year: imagesWithUrls[i].year,
-          sceneIndex: i,
-        });
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw current image
+        ctx.globalAlpha = 1;
+        ctx.drawImage(currentImg, 0, 0, canvas.width, canvas.height);
 
         // Handle transitions
         if (nextImg && frame >= totalFramesPerImage - transitionFrames) {
           const t = (frame - (totalFramesPerImage - transitionFrames)) / transitionFrames;
-          drawTransition(ctx, currentImg, nextImg, t, transition, {
-            canvasWidth: canvas.width,
-            canvasHeight: canvas.height,
-            useVintageFilters,
-            useKenBurns,
-            nextYear: imagesWithUrls[i + 1].year,
-            nextSceneIndex: i + 1,
-          });
+          
+          if (transition === 'fade') {
+            ctx.globalAlpha = t;
+            ctx.drawImage(nextImg, 0, 0, canvas.width, canvas.height);
+          } else if (transition === 'slide') {
+            ctx.globalAlpha = 1;
+            ctx.drawImage(currentImg, -t * canvas.width, 0, canvas.width, canvas.height);
+            ctx.drawImage(nextImg, canvas.width - t * canvas.width, 0, canvas.width, canvas.height);
+          }
         }
 
-        // Draw year overlay
-        drawYearOverlay(ctx, imagesWithUrls[i].year, canvas.width, canvas.height);
+        // Add Year Text Overlay - High Quality
+        ctx.globalAlpha = 1;
+        ctx.shadowColor = 'rgba(0,0,0,0.8)';
+        ctx.shadowBlur = 10;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.6)';
+        ctx.beginPath();
+        ctx.roundRect(40, 40, 160, 60, 10);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        
+        ctx.fillStyle = '#f59e0b'; // amber-500
+        ctx.font = 'bold 36px "JetBrains Mono", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(imagesWithUrls[i].year.toString(), 120, 70);
 
         setProgress(Math.round(((i * totalFramesPerImage + frame) / (imagesWithUrls.length * totalFramesPerImage)) * 100));
         
+        // Wait for next frame
         await new Promise(resolve => setTimeout(resolve, 1000 / fps));
       }
     }
 
     recorder.stop();
+  };
+
+  const loadImage = (url: string): Promise<HTMLImageElement> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = url;
+    });
   };
 
   const getFileExtension = () => {
@@ -203,7 +154,7 @@ export function VideoExportModal({ scenes, onClose }: VideoExportModalProps) {
       <motion.div 
         initial={{ opacity: 0, scale: 0.9 }}
         animate={{ opacity: 1, scale: 1 }}
-        className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden max-h-[90vh] overflow-y-auto"
+        className="bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden"
       >
         <div className="p-6 border-b border-zinc-800 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -220,40 +171,7 @@ export function VideoExportModal({ scenes, onClose }: VideoExportModalProps) {
         <div className="p-6 space-y-6">
           {!videoUrl && !isExporting && (
             <>
-              {/* Export Presets */}
-              <div className="space-y-3">
-                <label className="flex items-center gap-2 text-sm font-medium text-zinc-300">
-                  <Monitor size={16} className="text-zinc-500" /> Quick Presets
-                </label>
-                <div className="grid grid-cols-5 gap-1.5">
-                  {EXPORT_PRESETS.map((preset) => (
-                    <button
-                      key={preset.id}
-                      onClick={() => handlePresetSelect(preset)}
-                      className={`flex flex-col items-center gap-1 py-2.5 px-1 text-xs rounded-lg border transition-all ${
-                        selectedPreset === preset.id
-                          ? 'bg-amber-500/15 border-amber-500/40 text-amber-400'
-                          : 'bg-zinc-800/50 border-zinc-700/50 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
-                      }`}
-                    >
-                      <span className="text-base">{preset.icon}</span>
-                      <span className="font-bold text-[10px] leading-tight text-center">{preset.name}</span>
-                    </button>
-                  ))}
-                </div>
-                {selectedPreset && selectedPreset !== 'custom' && (
-                  <motion.p
-                    initial={{ opacity: 0, y: -4 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="text-[10px] text-amber-400/60 text-center font-mono"
-                  >
-                    {EXPORT_PRESETS.find(p => p.id === selectedPreset)?.description}
-                  </motion.p>
-                )}
-              </div>
-
-              {/* Duration */}
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <label className="flex items-center gap-2 text-sm font-medium text-zinc-300">
                     <Clock size={16} className="text-zinc-500" /> Duration per image
@@ -265,61 +183,35 @@ export function VideoExportModal({ scenes, onClose }: VideoExportModalProps) {
                   min="1" 
                   max="10" 
                   value={duration} 
-                  onChange={(e) => { setDuration(parseInt(e.target.value)); setSelectedPreset('custom'); }}
+                  onChange={(e) => setDuration(parseInt(e.target.value))}
                   className="w-full accent-amber-500"
                 />
               </div>
 
-              {/* Transition Type — expanded grid */}
               <div className="space-y-3">
                 <label className="flex items-center gap-2 text-sm font-medium text-zinc-300">
                   <MoveHorizontal size={16} className="text-zinc-500" /> Transition Type
                 </label>
-                <div className="grid grid-cols-4 gap-1.5">
-                  {TRANSITION_OPTIONS.map((opt) => (
+                <div className="grid grid-cols-3 gap-2">
+                  {(['fade', 'slide', 'cut'] as TransitionType[]).map((type) => (
                     <button
-                      key={opt.type}
-                      onClick={() => { setTransition(opt.type); setSelectedPreset('custom'); }}
-                      className={`py-2 px-1 text-center rounded-lg border transition-all ${
-                        transition === opt.type 
+                      key={type}
+                      onClick={() => setTransition(type)}
+                      className={`py-2 text-xs font-bold uppercase tracking-wider rounded-md border transition-all ${
+                        transition === type 
                           ? 'bg-amber-500/20 border-amber-500 text-amber-500' 
                           : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:border-zinc-600'
                       }`}
                     >
-                      <div className="text-[10px] font-black uppercase tracking-wider">{opt.label}</div>
-                      <div className="text-[8px] text-zinc-600 mt-0.5">{opt.description}</div>
+                      {type}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {/* VFX */}
-              <div className="space-y-3">
-                <label className="flex items-center gap-2 text-sm font-medium text-zinc-300">
-                  <Wand2 size={16} className="text-zinc-500" /> Cinematic VFX
-                </label>
-                <div className="space-y-2">
-                  <label className="flex items-center gap-3 cursor-pointer group">
-                    <input type="checkbox" checked={useKenBurns} onChange={e => setUseKenBurns(e.target.checked)} className="rounded bg-zinc-900 border-zinc-700 text-amber-500 focus:ring-amber-500 w-4 h-4 cursor-pointer" />
-                    <div>
-                      <div className="text-sm font-medium text-zinc-300 group-hover:text-white transition-colors">Ken Burns Effect</div>
-                      <div className="text-xs text-zinc-500">Slow dynamic zoom and pan</div>
-                    </div>
-                  </label>
-                  <label className="flex items-center gap-3 cursor-pointer group">
-                    <input type="checkbox" checked={useVintageFilters} onChange={e => setUseVintageFilters(e.target.checked)} className="rounded bg-zinc-900 border-zinc-700 text-amber-500 focus:ring-amber-500 w-4 h-4 cursor-pointer" />
-                    <div>
-                      <div className="text-sm font-medium text-zinc-300 group-hover:text-white transition-colors">Historical Film Filters</div>
-                      <div className="text-xs text-zinc-500">Auto-applies Sepia, Grain, B&W based on year</div>
-                    </div>
-                  </label>
-                </div>
-              </div>
-
-              {/* Quality info */}
               <div className="p-3 bg-zinc-950/50 rounded-lg border border-zinc-800">
                 <p className="text-[10px] text-zinc-500 uppercase font-bold tracking-widest mb-1">Quality Settings</p>
-                <p className="text-xs text-zinc-400">High Bitrate (15Mbps) · {imagesWithUrls[0]?.imageUrl ? 'Original Resolution' : 'Auto'}</p>
+                <p className="text-xs text-zinc-400">High Bitrate (15Mbps) • {imagesWithUrls[0]?.imageUrl ? 'Original Resolution' : 'Auto'}</p>
               </div>
 
               <button 
