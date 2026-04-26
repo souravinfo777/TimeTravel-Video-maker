@@ -33,7 +33,7 @@ export function SceneList({ state, updateState }: SceneListProps) {
 
     await Promise.all(scenesToGenerate.map(async (scene) => {
       try {
-        const imageUrl = await generateImage(scene.prompt, state.aspectRatio, state.imageSize);
+        const imageUrl = await generateImage(scene.prompt, state.aspectRatio, state.imageSize, state.aiProvider);
         updateScene(scene.id, { imageUrl, isGeneratingImage: false });
       } catch (error: any) {
         updateScene(scene.id, { imageError: error.message, isGeneratingImage: false });
@@ -148,6 +148,7 @@ export function SceneList({ state, updateState }: SceneListProps) {
                   total={state.scenes.length}
                   aspectRatio={state.aspectRatio}
                   imageSize={state.imageSize}
+                  aiProvider={state.aiProvider}
                   onUpdate={(updates) => updateScene(scene.id, updates)} 
                 />
               </motion.div>

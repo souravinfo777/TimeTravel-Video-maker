@@ -1,7 +1,8 @@
 import React from 'react';
-import { AppState, SavedProject } from '../types';
-import { MapPin, Sparkles, Users, Image as ImageIcon, Settings2 } from 'lucide-react';
+import { AppState, LocationResult, SavedProject } from '../types';
+import { MapPin, Sparkles, Users, Image as ImageIcon, Settings2, Zap, Globe } from 'lucide-react';
 import { ProjectHistory } from './ProjectHistory';
+import { LocationSearch } from './LocationSearch';
 import { parseNumberOrFallback } from '../services/storage';
 
 interface SidebarProps {
@@ -17,9 +18,11 @@ interface SidebarProps {
   onLoadProject: (project: SavedProject) => void;
   onDeleteProject: (project: SavedProject) => void;
   onNewProject: () => void;
+  onSelectLocation: (location: LocationResult) => void;
+  onClearLocation: () => void;
 }
 
-export function Sidebar({ state, updateState, onGenerateLocation, onGeneratePrompts, projects, currentProjectId, suggestedProjectName, hasProjectData, onSaveProject, onLoadProject, onDeleteProject, onNewProject }: SidebarProps) {
+export function Sidebar({ state, updateState, onGenerateLocation, onGeneratePrompts, projects, currentProjectId, suggestedProjectName, hasProjectData, onSaveProject, onLoadProject, onDeleteProject, onNewProject, onSelectLocation, onClearLocation }: SidebarProps) {
   return (
     <aside className="w-full lg:w-80 lg:max-w-80 bg-zinc-900 border-b lg:border-b-0 lg:border-r border-zinc-800 flex flex-col lg:h-full shrink-0 overflow-y-auto">
       <ProjectHistory
@@ -32,6 +35,49 @@ export function Sidebar({ state, updateState, onGenerateLocation, onGenerateProm
         onDelete={onDeleteProject}
         onNewProject={onNewProject}
       />
+
+      {/* AI Provider Selector */}
+      <div className="p-5 border-b border-zinc-800">
+        <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-400 mb-3 flex items-center gap-2">
+          <Zap size={16} className="text-amber-500" /> AI Provider
+        </h2>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => updateState({ aiProvider: 'free' })}
+            className={`py-2.5 px-3 rounded-lg text-xs font-bold uppercase tracking-wider border transition-all flex flex-col items-center gap-1 ${
+              state.aiProvider === 'free'
+                ? 'bg-emerald-500/20 border-emerald-500 text-emerald-400 shadow-sm shadow-emerald-500/10'
+                : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:border-zinc-600'
+            }`}
+          >
+            <Globe size={16} />
+            Free AI
+            <span className="text-[9px] font-normal normal-case tracking-normal opacity-70">No limits</span>
+          </button>
+          <button
+            onClick={() => updateState({ aiProvider: 'gemini' })}
+            className={`py-2.5 px-3 rounded-lg text-xs font-bold uppercase tracking-wider border transition-all flex flex-col items-center gap-1 ${
+              state.aiProvider === 'gemini'
+                ? 'bg-blue-500/20 border-blue-500 text-blue-400 shadow-sm shadow-blue-500/10'
+                : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:border-zinc-600'
+            }`}
+          >
+            <Sparkles size={16} />
+            Gemini
+            <span className="text-[9px] font-normal normal-case tracking-normal opacity-70">API key</span>
+          </button>
+        </div>
+        {state.aiProvider === 'free' && (
+          <p className="text-[10px] text-emerald-400/70 mt-2 leading-relaxed">
+            Powered by Pollinations.ai — completely free, no API key needed.
+          </p>
+        )}
+        {state.aiProvider === 'gemini' && (
+          <p className="text-[10px] text-blue-400/70 mt-2 leading-relaxed">
+            Requires GEMINI_API_KEY in your environment.
+          </p>
+        )}
+      </div>
 
       <div className="p-5 border-b border-zinc-800">
         <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-400 mb-4 flex items-center gap-2">
@@ -57,6 +103,17 @@ export function Sidebar({ state, updateState, onGenerateLocation, onGenerateProm
         <h2 className="text-sm font-bold uppercase tracking-wider text-zinc-400 mb-4 flex items-center gap-2">
           <MapPin size={16} className="text-amber-500" /> Location
         </h2>
+
+        {/* Location Search (Nominatim) */}
+        <div className="mb-3">
+          <label className="block text-xs font-medium text-zinc-400 mb-1">Search Location (Free)</label>
+          <LocationSearch
+            onSelect={onSelectLocation}
+            selectedLocation={state.selectedLocation}
+            onClear={onClearLocation}
+          />
+        </div>
+
         <div className="mb-3">
           <label className="block text-xs font-medium text-zinc-400 mb-1" htmlFor="location-hint">Location Hint (for AI)</label>
           <div className="flex gap-2">
