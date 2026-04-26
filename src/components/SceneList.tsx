@@ -25,13 +25,12 @@ export function SceneList({ state, updateState }: SceneListProps) {
 
   const handleGenerateAll = async () => {
     const scenesToGenerate = state.scenes.filter(scene => !scene.imageUrl && !scene.isGeneratingImage);
+    if (scenesToGenerate.length === 0 || state.scenes.some(scene => scene.isGeneratingImage)) return;
     
-    // Mark all as generating immediately
     scenesToGenerate.forEach(scene => {
       updateScene(scene.id, { isGeneratingImage: true, imageError: undefined });
     });
 
-    // Generate all images in parallel for much faster execution
     await Promise.all(scenesToGenerate.map(async (scene) => {
       try {
         const imageUrl = await generateImage(scene.prompt, state.aspectRatio, state.imageSize);
@@ -47,6 +46,10 @@ export function SceneList({ state, updateState }: SceneListProps) {
   const hasBeforeAfter = firstScene?.imageUrl && lastScene?.imageUrl && state.scenes.length > 1;
   const hasAnyImages = state.scenes.some(s => s.imageUrl);
   const allImagesGenerated = state.scenes.length > 0 && state.scenes.every(s => s.imageUrl);
+  const hasPendingImages = state.scenes.some(s => !s.imageUrl);
+  const anyImageGenerating = state.scenes.some(s => s.isGeneratingImage);
+  const disableGenerateAll = anyImageGenerating || !hasPendingImages;
+  const generateAllLabel = anyImageGenerating ? 'Generating Images...' : allImagesGenerated ? 'All Images Generated' : 'Generate All Images';
 
   return (
     <div className="max-w-4xl mx-auto pb-12">
@@ -83,12 +86,12 @@ export function SceneList({ state, updateState }: SceneListProps) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <div className="flex justify-between items-end mb-8">
+          <div className="flex flex-col lg:flex-row lg:justify-between lg:items-end gap-4 mb-8">
             <div>
               <h2 className="text-3xl font-bold text-white tracking-tight">Generated Timeline</h2>
               <p className="text-zinc-400 mt-1">{state.scenes.length} scenes from {state.startYear} to {state.endYear}</p>
             </div>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               {hasAnyImages && (
                 <button 
                   onClick={() => setShowTimelapse(true)} 
@@ -106,10 +109,11 @@ export function SceneList({ state, updateState }: SceneListProps) {
                 </button>
               )}
               <button 
-                onClick={handleGenerateAll} 
-                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold rounded-lg shadow-sm transition-colors"
+                onClick={handleGenerateAll}
+                disabled={disableGenerateAll}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-zinc-950 font-bold rounded-lg shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Generate All Images
+                {generateAllLabel}
               </button>
             </div>
           </div>

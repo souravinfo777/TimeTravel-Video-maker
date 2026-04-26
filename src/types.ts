@@ -28,3 +28,11 @@ export interface AppState {
   globalError?: string;
   places?: any[];
 }
+
+export interface SavedProject {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  snapshot: AppState;
+}
