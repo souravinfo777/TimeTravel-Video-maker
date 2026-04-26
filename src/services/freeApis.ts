@@ -198,23 +198,10 @@ Rules:
 4. Include "Text overlay: [YEAR]" at end of each prompt
 5. Each prompt must be a detailed paragraph for image generation`;
 
-  const url = `https://text.pollinations.ai/`;
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt }
-      ],
-      model: 'openai',
-      jsonMode: true
-    })
-  });
-
-  if (!res.ok) throw new Error('Free prompt generation failed. Please try again.');
-
-  const text = await res.text();
+  const text = await pollinationsChat([
+    { role: 'system', content: systemPrompt },
+    { role: 'user', content: userPrompt }
+  ], true);
   const jsonMatch = text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) throw new Error('Could not parse generated prompts. Please try again.');
 
@@ -227,23 +214,24 @@ Rules:
   }));
 }
 
-// --- Free Location Description ---
-export async function generateFreeLocationDescription(hint: string): Promise<string> {
-  const url = `https://text.pollinations.ai/`;
-  const res = await fetch(url, {
+// --- Helper: call Pollinations chat completions API ---
+async function pollinationsChat(messages: { role: string; content: string }[], jsonMode = false): Promise<string> {
+  const res = await fetch('https://text.pollinations.ai/openai/v1/chat/completions', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      messages: [
-        { role: 'system', content: 'You are a location description expert. Provide highly detailed physical descriptions suitable for image generation prompts. Include architecture, vegetation, street elements, lighting. No conversational text, just the description.' },
-        { role: 'user', content: `Describe this real-world location in detail: "${hint}"` }
-      ],
-      model: 'openai'
-    })
+    body: JSON.stringify({ messages, model: 'openai', response_format: jsonMode ? { type: 'json_object' } : undefined })
   });
+  if (!res.ok) throw new Error('Free AI text generation failed. Please try again.');
+  const data = await res.json();
+  return data.choices?.[0]?.message?.content ?? '';
+}
 
-  if (!res.ok) throw new Error('Free location description generation failed');
-  return await res.text();
+// --- Free Location Description ---
+export async function generateFreeLocationDescription(hint: string): Promise<string> {
+  return pollinationsChat([
+    { role: 'system', content: 'You are a location description expert. Provide highly detailed physical descriptions suitable for image generation prompts. Include architecture, vegetation, street elements, lighting. No conversational text, just the description.' },
+    { role: 'user', content: `Describe this real-world location in detail: "${hint}"` }
+  ]);
 }
 
 // --- Free Image Analysis ---
