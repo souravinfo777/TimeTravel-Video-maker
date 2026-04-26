@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Scene } from '../types';
+import { AIProvider, Scene } from '../types';
 import { generateImage, editImage, analyzeImage } from '../services/gemini';
 import { Image as ImageIcon, Download, Wand2, Search, Edit3 } from 'lucide-react';
 import { motion } from 'motion/react';
@@ -11,17 +11,18 @@ interface SceneCardProps {
   total: number;
   aspectRatio: string;
   imageSize: string;
+  aiProvider: AIProvider;
   onUpdate: (updates: Partial<Scene>) => void;
 }
 
-export function SceneCard({ scene, index, total, aspectRatio, imageSize, onUpdate }: SceneCardProps) {
+export function SceneCard({ scene, index, total, aspectRatio, imageSize, aiProvider, onUpdate }: SceneCardProps) {
   const [editPrompt, setEditPrompt] = useState('');
   const [showEdit, setShowEdit] = useState(false);
 
   const handleGenerateImage = async () => {
     onUpdate({ isGeneratingImage: true, imageError: undefined });
     try {
-      const imageUrl = await generateImage(scene.prompt, aspectRatio, imageSize);
+      const imageUrl = await generateImage(scene.prompt, aspectRatio, imageSize, aiProvider);
       onUpdate({ imageUrl, isGeneratingImage: false });
     } catch (error: any) {
       onUpdate({ imageError: error.message, isGeneratingImage: false });
@@ -30,6 +31,10 @@ export function SceneCard({ scene, index, total, aspectRatio, imageSize, onUpdat
 
   const handleEditImage = async () => {
     if (!scene.imageUrl || !editPrompt) return;
+    if (aiProvider === 'free') {
+      onUpdate({ imageError: 'Image editing requires Gemini AI provider. Switch to Gemini in the sidebar.' });
+      return;
+    }
     onUpdate({ isEditing: true, imageError: undefined });
     try {
       const newImageUrl = await editImage(scene.imageUrl, editPrompt);
@@ -45,7 +50,7 @@ export function SceneCard({ scene, index, total, aspectRatio, imageSize, onUpdat
     if (!scene.imageUrl) return;
     onUpdate({ isAnalyzing: true });
     try {
-      const analysis = await analyzeImage(scene.imageUrl);
+      const analysis = await analyzeImage(scene.imageUrl, aiProvider);
       onUpdate({ analysis, isAnalyzing: false });
     } catch (error: any) {
       onUpdate({ analysis: `Error: ${error.message}`, isAnalyzing: false });
@@ -72,6 +77,11 @@ export function SceneCard({ scene, index, total, aspectRatio, imageSize, onUpdat
           <div className="text-xs font-medium text-zinc-500 uppercase tracking-wider">
             Scene {index + 1} of {total}
           </div>
+          {scene.weatherSummary && (
+            <div className="ml-auto text-[10px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded-full border border-blue-500/20">
+              {scene.weatherSummary}
+            </div>
+          )}
         </div>
         
         <div className="flex-1 mb-4">

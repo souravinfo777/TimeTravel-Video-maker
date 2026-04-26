@@ -1,14 +1,21 @@
 import { GoogleGenAI, Type, ThinkingLevel } from '@google/genai/web';
+import { AIProvider } from '../types';
+import { generateFreeImage, generateFreePrompts, generateFreeLocationDescription, analyzeFreeImage } from './freeApis';
 
 const getFreeAI = () => {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
-    throw new Error('GEMINI_API_KEY is not defined. Please configure it in the Secrets panel.');
+    throw new Error('GEMINI_API_KEY is not defined. Please configure it in the Secrets panel or switch to Free AI provider.');
   }
   return new GoogleGenAI({ apiKey });
 };
 
-export async function generateLocationDescription(hint: string): Promise<{ description: string, places: any[] }> {
+export async function generateLocationDescription(hint: string, provider: AIProvider = 'free'): Promise<{ description: string, places: any[] }> {
+  if (provider === 'free') {
+    const description = await generateFreeLocationDescription(hint);
+    return { description, places: [] };
+  }
+
   const ai = getFreeAI();
   const response = await ai.models.generateContent({
     model: 'gemini-flash-latest',
@@ -26,7 +33,11 @@ export async function generateLocationDescription(hint: string): Promise<{ descr
   return { description: response.text || '', places: [] };
 }
 
-export async function generatePrompts(params: any): Promise<any[]> {
+export async function generatePrompts(params: any, provider: AIProvider = 'free'): Promise<any[]> {
+  if (provider === 'free') {
+    return generateFreePrompts(params);
+  }
+
   const ai = getFreeAI();
   const { startYear, endYear, numImages, locationDescription, charactersEnabled, numPeople, characterNotes, decayLevel } = params;
   
@@ -79,10 +90,13 @@ export async function generatePrompts(params: any): Promise<any[]> {
   return JSON.parse(text);
 }
 
-export async function generateImage(prompt: string, aspectRatio: string, imageSize: string): Promise<string> {
+export async function generateImage(prompt: string, aspectRatio: string, _imageSize: string, provider: AIProvider = 'free'): Promise<string> {
+  if (provider === 'free') {
+    return generateFreeImage(prompt, aspectRatio);
+  }
+
   const ai = getFreeAI();
   
-  // Clean up the prompt to prevent 500 errors and ensure it's safe for the model.
   let safePrompt = prompt.replace(/Text overlay:.*?$/im, '').trim();
   safePrompt = safePrompt.substring(0, 1000) + ' Documentary photography, highly detailed.';
 
@@ -98,7 +112,6 @@ export async function generateImage(prompt: string, aspectRatio: string, imageSi
   
   for (const part of response.candidates?.[0]?.content?.parts || []) {
     if (part.inlineData) {
-      // The model might not return mimeType, so we default to image/png as per docs
       const mimeType = part.inlineData.mimeType || 'image/png';
       return `data:${mimeType};base64,${part.inlineData.data}`;
     }
@@ -130,7 +143,11 @@ export async function editImage(base64Image: string, editPrompt: string): Promis
   throw new Error("No image generated");
 }
 
-export async function analyzeImage(base64Image: string): Promise<string> {
+export async function analyzeImage(base64Image: string, provider: AIProvider = 'free'): Promise<string> {
+  if (provider === 'free') {
+    return analyzeFreeImage(base64Image);
+  }
+
   const ai = getFreeAI();
   const mimeType = base64Image.split(';')[0].split(':')[1];
   const data = base64Image.split(',')[1];

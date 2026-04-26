@@ -1,3 +1,5 @@
+export type AIProvider = 'free' | 'gemini';
+
 export interface Scene {
   id: string;
   year: number;
@@ -8,6 +10,30 @@ export interface Scene {
   analysis?: string;
   isAnalyzing?: boolean;
   isEditing?: boolean;
+  weatherSummary?: string;
+}
+
+export interface LocationResult {
+  displayName: string;
+  lat: number;
+  lon: number;
+  type: string;
+}
+
+export interface HistoricalFact {
+  title: string;
+  extract: string;
+  year?: number;
+  thumbnail?: string;
+}
+
+export interface WeatherData {
+  year: number;
+  avgTemp: number;
+  maxTemp: number;
+  minTemp: number;
+  totalPrecipitation: number;
+  dominantCondition: string;
 }
 
 export interface AppState {
@@ -27,6 +53,12 @@ export interface AppState {
   isGeneratingLocation: boolean;
   globalError?: string;
   places?: any[];
+  aiProvider: AIProvider;
+  selectedLocation?: LocationResult;
+  historicalFacts: HistoricalFact[];
+  isLoadingFacts: boolean;
+  weatherData: WeatherData[];
+  isLoadingWeather: boolean;
 }
 
 export interface SavedProject {

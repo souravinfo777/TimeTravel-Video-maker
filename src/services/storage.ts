@@ -18,7 +18,12 @@ export const DEFAULT_APP_STATE: AppState = {
   scenes: [],
   isGeneratingPrompts: false,
   isGeneratingLocation: false,
-  places: []
+  places: [],
+  aiProvider: 'free',
+  historicalFacts: [],
+  isLoadingFacts: false,
+  weatherData: [],
+  isLoadingWeather: false
 };
 
 const STORAGE_ERROR = 'Unable to save locally. Your browser storage may be full; delete old projects or remove some generated images before saving again.';
@@ -73,6 +78,8 @@ export function createSerializableSnapshot(state: Partial<AppState> | unknown): 
     ? raw.scenes.map(sanitizeScene).filter((scene): scene is Scene => Boolean(scene))
     : [];
 
+  const aiProvider = raw.aiProvider === 'gemini' ? 'gemini' : 'free';
+
   return {
     ...DEFAULT_APP_STATE,
     startYear: parseNumberOrFallback(raw.startYear, DEFAULT_APP_STATE.startYear, 0, 9999),
@@ -89,7 +96,13 @@ export function createSerializableSnapshot(state: Partial<AppState> | unknown): 
     scenes,
     isGeneratingPrompts: false,
     isGeneratingLocation: false,
-    places: Array.isArray(raw.places) ? raw.places : []
+    places: Array.isArray(raw.places) ? raw.places : [],
+    aiProvider,
+    selectedLocation: raw.selectedLocation && typeof raw.selectedLocation === 'object' ? raw.selectedLocation : undefined,
+    historicalFacts: Array.isArray(raw.historicalFacts) ? raw.historicalFacts : [],
+    isLoadingFacts: false,
+    weatherData: Array.isArray(raw.weatherData) ? raw.weatherData : [],
+    isLoadingWeather: false
   };
 }
 
